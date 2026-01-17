@@ -1,0 +1,5 @@
+{
+  "editor.formatOnSave": true,
+  "prettier.singleQuote": false,
+  "workbench.settings.useSplitJSON": true
+}
