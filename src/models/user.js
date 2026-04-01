@@ -39,6 +39,16 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: false,
       },
+      refreshToken: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        comment: "JWT refresh token để lấy access token mới",
+      },
+      refreshTokenExpiresAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        comment: "Thời gian hết hạn của refresh token",
+      },
     },
     {
       sequelize,

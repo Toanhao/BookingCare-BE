@@ -47,15 +47,35 @@ const loginUser = async ({ email, password }) => {
   const match = await bcrypt.compare(password, user.password);
   if (!match) throw new Error("Incorrect password");
 
-  // Tạo JWT
-  const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, {
-    expiresIn: "1d",
+  //Tạo Access Token (15 phút)
+  const accessToken = jwt.sign(
+    { id: user.id, role: user.role },
+    JWT_SECRET,
+    { expiresIn: "15m" }
+  );
+
+  // Tạo Refresh Token (7 ngày)
+  const refreshToken = jwt.sign(
+    { id: user.id, role: user.role },
+    JWT_SECRET,
+    { expiresIn: "7d" }
+  );
+
+  //Lưu Refresh Token vào Database
+  const refreshTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 ngày
+  await user.update({
+    refreshToken,
+    refreshTokenExpiresAt,
   });
 
-  // Bỏ password trước khi trả về
-  const { password: _pw, ...safeUser } = user;
+  // Bỏ password + refreshToken trước khi trả về
+  const { password: _pw, refreshToken: _rt, refreshTokenExpiresAt: _rte, ...safeUser } = user.dataValues;
 
-  return { user: safeUser, token };
+  return {
+    user: safeUser,
+    accessToken,
+    refreshToken,
+  };
 };
 
 // Lấy profile user kèm data tương ứng với role
@@ -172,6 +192,83 @@ const getDoctorUsers = async () => {
   return doctors;
 };
 
+//REFRESH TOKEN FLOW
+const refreshAccessToken = async (refreshToken) => {
+  if (!refreshToken) throw new Error("Missing refresh token");
+
+  //Verify refresh token
+  let decoded;
+  try {
+    decoded = jwt.verify(refreshToken, JWT_SECRET);
+  } catch (error) {
+    if (error.name === "TokenExpiredError") {
+      throw new Error("Refresh token expired");
+    }
+    throw new Error("Invalid refresh token");
+  }
+
+  //BƯỚC 2: Lấy user từ DB
+  const user = await db.User.findByPk(decoded.id);
+  if (!user) throw new Error("User not found");
+
+  // Kiểm tra refresh token 
+  if (user.refreshToken !== refreshToken) {
+    await user.update({
+      refreshToken: null,
+      refreshTokenExpiresAt: null,
+    });
+    throw new Error("Refresh token mismatch - possible security breach. Please login again.");
+  }
+
+  //Kiểm tra token còn hạn không
+  if (new Date() > new Date(user.refreshTokenExpiresAt)) {
+    throw new Error("Refresh token expired in database");
+  }
+
+  //Tạo access token + refresh token mới
+  const newAccessToken = jwt.sign(
+    { id: user.id, role: user.role },
+    JWT_SECRET,
+    { expiresIn: "15m" }
+  );
+
+  const newRefreshToken = jwt.sign(
+    { id: user.id, role: user.role },
+    JWT_SECRET,
+    { expiresIn: "7d" }
+  );
+
+  //Lưu refresh token mới vào DB
+  const refreshTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  await user.update({
+    refreshToken: newRefreshToken,
+    refreshTokenExpiresAt,
+  });
+
+  const { password: _pw, refreshToken: _rt, refreshTokenExpiresAt: _rte, ...safeUser } = user.dataValues;
+
+  return {
+    user: safeUser,
+    accessToken: newAccessToken,
+    refreshToken: newRefreshToken,
+  };
+};
+
+// Logout: xóa refresh token khỏi DB
+const logoutUser = async (userId) => {
+  if (!userId) throw new Error("Missing user ID");
+
+  const user = await db.User.findByPk(userId);
+  if (!user) throw new Error("User not found");
+
+  await user.update({
+    refreshToken: null,
+    refreshTokenExpiresAt: null,
+  });
+
+  return true;
+};
+
 module.exports = {
   registerUser,
   loginUser,
@@ -181,4 +278,6 @@ module.exports = {
   deleteUser,
   updateUser,
   getDoctorUsers,
+  refreshAccessToken,
+  logoutUser,
 };

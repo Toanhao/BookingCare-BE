@@ -13,6 +13,10 @@ import medicalRecordController from "../controllers/medicalRecordController.js";
 import billController from "../controllers/billController.js";
 import statisticController from "../controllers/statisticController.js";
 import chatController from "../controllers/chatController.js";
+
+const verifyToken = require("../middlewares/verifyToken.js");
+const requireRole = require("../middlewares/rbacMiddleware.js");
+
 let router = express.Router();
 
 let initWebRoutes = (app) => {
@@ -20,99 +24,95 @@ let initWebRoutes = (app) => {
     return res.send("Hello World!");
   });
 
-  // user (auth + management)
-  router.post("/api/users/register", userController.registerUser); // đăng ký
-  router.post("/api/users/login", userController.loginUser); // đăng nhập
-  router.get("/api/users/profile", userController.getUserProfile); // lấy profile user hiện tại
-  router.post("/api/users/create", userController.createUser); // Admin tạo user với role tùy chỉnh
-  router.get("/api/users", userController.getUsers); // Lấy danh sách users
-  router.get("/api/users/doctors", userController.getDoctorUsers); // Lấy danh sách users có role DOCTOR
-  router.delete("/api/users/:id", userController.deleteUser); // Xóa user
-  router.put("/api/users/:id", userController.updateUser); // Cập nhật user
+  // ========== USER ROUTES ==========
+  router.post("/api/users/register", userController.registerUser);
+  router.post("/api/users/login", userController.loginUser);
+  router.get("/api/users/profile", verifyToken, userController.getUserProfile);
+  router.post("/api/users/refresh-token", userController.refreshAccessToken);
+  router.post("/api/users/logout", verifyToken, userController.logoutUser);
+  router.post("/api/users/create", verifyToken, requireRole("ADMIN"), userController.createUser);
+  router.get("/api/users", verifyToken, requireRole("ADMIN"), userController.getUsers);
+  router.get("/api/users/doctors", verifyToken, requireRole("ADMIN"), userController.getDoctorUsers);
+  router.delete("/api/users/:id", verifyToken, requireRole("ADMIN"), userController.deleteUser);
+  router.put("/api/users/:id", verifyToken, requireRole("ADMIN"), userController.updateUser);
 
   // doctor
-  router.post("/api/doctors", doctorController.createDoctor); // tạo doctor
-  router.patch("/api/doctors/:id", doctorController.updateDoctor); // cập nhật doctor
-  router.get("/api/doctors", doctorController.getDoctors); // lấy danh sách doctors
-  router.get("/api/doctors/:id", doctorController.getDoctorById); // lấy doctor by id
+  router.post("/api/doctors", verifyToken, requireRole("ADMIN"), doctorController.createDoctor);
+  router.patch("/api/doctors/:id", verifyToken, requireRole("ADMIN"), doctorController.updateDoctor);
+  router.get("/api/doctors", doctorController.getDoctors);
+  router.get("/api/doctors/:id", doctorController.getDoctorById);
 
-  // specialty
-  router.post("/api/specialties", specialtyController.createSpecialty); // tạo specialty
-  router.get("/api/specialties", specialtyController.getSpecialties); // lấy danh sách specialties
-  router.get("/api/specialties/:id", specialtyController.getSpecialtyById); // lấy specialty by id
-  router.patch("/api/specialties/:id", specialtyController.updateSpecialty); // cập nhật specialty
-  router.delete("/api/specialties/:id", specialtyController.deleteSpecialty); // xóa specialty
+  // ========== SPECIALTY ROUTES ==========
+  router.post("/api/specialties", verifyToken, requireRole("ADMIN"), specialtyController.createSpecialty);
+  router.get("/api/specialties", specialtyController.getSpecialties);
+  router.get("/api/specialties/:id", specialtyController.getSpecialtyById);
+  router.patch("/api/specialties/:id", verifyToken, requireRole("ADMIN"), specialtyController.updateSpecialty);
+  router.delete("/api/specialties/:id", verifyToken, requireRole("ADMIN"), specialtyController.deleteSpecialty);
 
-  // clinic
-  router.post("/api/clinics", clinicController.createClinic); // tạo clinic
-  router.get("/api/clinics", clinicController.getClinics); // lấy danh sách clinics
-  router.get("/api/clinics/:id", clinicController.getClinicById); // lấy clinic by id
-  router.patch("/api/clinics/:id", clinicController.updateClinic); // cập nhật clinic
-  router.delete("/api/clinics/:id", clinicController.deleteClinic); // xóa clinic
+  // ========== CLINIC ROUTES ==========
+  router.post("/api/clinics", verifyToken, requireRole("ADMIN"), clinicController.createClinic);
+  router.get("/api/clinics", clinicController.getClinics);
+  router.get("/api/clinics/:id", clinicController.getClinicById);
+  router.patch("/api/clinics/:id", verifyToken, requireRole("ADMIN"), clinicController.updateClinic);
+  router.delete("/api/clinics/:id", verifyToken, requireRole("ADMIN"), clinicController.deleteClinic);
 
-  // handbook
-  router.post("/api/handbooks", handbookController.createHandbook); // tạo handbook
-  router.get("/api/handbooks", handbookController.getHandbooks); // lấy danh sách handbooks
-  router.get("/api/handbooks/:id", handbookController.getHandbookById); // lấy handbook by id
-  router.patch("/api/handbooks/:id", handbookController.updateHandbook); // cập nhật handbook
-  router.delete("/api/handbooks/:id", handbookController.deleteHandbook); // xóa handbook
+  // ========== HANDBOOK ROUTES ==========
+  router.post("/api/handbooks", verifyToken, requireRole("DOCTOR"), handbookController.createHandbook);
+  router.get("/api/handbooks", handbookController.getHandbooks);
+  router.get("/api/handbooks/:id", handbookController.getHandbookById);
+  router.patch("/api/handbooks/:id", verifyToken, requireRole("DOCTOR"), handbookController.updateHandbook);
+  router.delete("/api/handbooks/:id", verifyToken, requireRole("DOCTOR"), handbookController.deleteHandbook);
 
-  // medicine
-  router.post("/api/medicines", medicineController.createMedicine); // tạo medicine
-  router.get("/api/medicines", medicineController.getMedicines); // lấy danh sách medicines
-  router.get("/api/medicines/:id", medicineController.getMedicineById); // lấy medicine by id
-  router.patch("/api/medicines/:id", medicineController.updateMedicine); // cập nhật medicine
-  router.delete("/api/medicines/:id", medicineController.deleteMedicine); // xóa medicine
+  // ========== MEDICINE ROUTES ==========
+  router.post("/api/medicines", verifyToken, requireRole("ADMIN"), medicineController.createMedicine);
+  router.get("/api/medicines", medicineController.getMedicines);
+  router.get("/api/medicines/:id", medicineController.getMedicineById);
+  router.patch("/api/medicines/:id", verifyToken, requireRole("ADMIN"), medicineController.updateMedicine);
+  router.delete("/api/medicines/:id", verifyToken, requireRole("ADMIN"), medicineController.deleteMedicine);
 
-  // timeslot
-  router.post("/api/time-slots", timeSlotController.createTimeSlot); // tạo time slot
-  router.get("/api/time-slots", timeSlotController.getTimeSlots); // lấy danh sách time slots
-  router.get("/api/time-slots/:id", timeSlotController.getTimeSlotById); // lấy time slot by id
-  router.patch("/api/time-slots/:id", timeSlotController.updateTimeSlot); // cập nhật time slot
-  router.delete("/api/time-slots/:id", timeSlotController.deleteTimeSlot); // xóa time slot
+  // ========== TIME SLOT ROUTES ==========
+  router.post("/api/time-slots", verifyToken, requireRole("ADMIN"), timeSlotController.createTimeSlot);
+  router.get("/api/time-slots", timeSlotController.getTimeSlots);
+  router.get("/api/time-slots/:id", timeSlotController.getTimeSlotById);
+  router.patch("/api/time-slots/:id", verifyToken, requireRole("ADMIN"), timeSlotController.updateTimeSlot);
+  router.delete("/api/time-slots/:id", verifyToken, requireRole("ADMIN"), timeSlotController.deleteTimeSlot);
 
-  // schedule
-  router.post("/api/schedules/bulk", scheduleController.createScheduleBulk); // tạo nhiều schedule
-  router.get("/api/schedules", scheduleController.getSchedules); // lấy danh sách schedules
-  router.patch("/api/schedules/:id", scheduleController.updateSchedule); // cập nhật schedule
+  // ========== SCHEDULE ROUTES ==========
+  router.post("/api/schedules/bulk", verifyToken, requireRole("DOCTOR", "ADMIN"), scheduleController.createScheduleBulk);
+  router.get("/api/schedules", scheduleController.getSchedules);
+  router.patch("/api/schedules/:id", verifyToken, requireRole("DOCTOR", "ADMIN"), scheduleController.updateSchedule);
 
-  // booking
-  router.post("/api/bookings", bookingController.createBooking); // tạo booking
+  // ========== BOOKING ROUTES ==========
+  router.post("/api/bookings", verifyToken, bookingController.createBooking);
   router.get("/api/bookings/confirm", bookingController.confirmBookingByToken);
   router.get("/api/bookings/cancel", bookingController.cancelBookingByToken);
-  router.get("/api/bookings/:id", bookingController.getBookingById); // lấy booking by id
-  // patient booking history + cancel (compat with FE)
-  router.get("/api/patient/bookings", bookingController.getPatientBookings);
-  router.patch("/api/patient/bookings/cancel", bookingController.cancelBooking);
-  // doctor booking management
-  router.get("/api/doctor/bookings", bookingController.getDoctorBookings);
+  router.get("/api/bookings/:id", verifyToken, bookingController.getBookingById);
+  
 
-  // medical record
-  router.post(
-    "/api/medical-records",
-    medicalRecordController.createMedicalRecord
-  );
+  router.get("/api/patient/bookings", verifyToken, requireRole("PATIENT"), bookingController.getPatientBookings);
+  router.patch("/api/patient/bookings/cancel", verifyToken, requireRole("PATIENT"), bookingController.cancelBooking);
+  router.get("/api/doctor/bookings", verifyToken, requireRole("DOCTOR"), bookingController.getDoctorBookings);
 
-  // prescription
-  router.post("/api/prescriptions", prescriptionController.createPrescription);
+  // ========== MEDICAL RECORD ROUTES ==========
+  router.post("/api/medical-records", verifyToken, requireRole("DOCTOR"), medicalRecordController.createMedicalRecord);
 
-  // bill
-  router.post("/api/bills", billController.createBill);
-  router.patch("/api/bills/pay", billController.payBill);
+  // ========== PRESCRIPTION ROUTES ==========
+  router.post("/api/prescriptions", verifyToken, requireRole("DOCTOR"), prescriptionController.createPrescription);
 
-  // statistic
-  router.get("/api/statistics/dashboard", statisticController.getDashboardKPI); // tổng lượt khám/doanh thu
-  router.get("/api/statistics/time-series", statisticController.getTimeSeries); // lượt khám/doanh thu theo ngày
-  router.get("/api/statistics/doctors", statisticController.getTopDoctors); // thống kê bác sĩ
-  router.get("/api/statistics/clinics", statisticController.getClinicsStats); // thống kê phòng khám
-  router.get(
-    "/api/statistics/specialties",
-    statisticController.getSpecialtiesStats
-  ); // thống kê chuyên khoa
-  router.get("/api/statistics/bookings", statisticController.getBookingDetails); // chi tiết lượt khám
+  // ========== BILL ROUTES ==========
+  router.post("/api/bills", verifyToken, requireRole("ADMIN", "DOCTOR"), billController.createBill);
+  router.patch("/api/bills/pay", verifyToken, requireRole("PATIENT"), billController.payBill);
 
-  // chat
-  router.post("/api/chat-booking", chatController.chatBooking);
+  // ========== STATISTIC ROUTES ==========
+  router.get("/api/statistics/dashboard", verifyToken, requireRole("ADMIN"), statisticController.getDashboardKPI);
+  router.get("/api/statistics/time-series", verifyToken, requireRole("ADMIN"), statisticController.getTimeSeries);
+  router.get("/api/statistics/doctors", verifyToken, requireRole("ADMIN"), statisticController.getTopDoctors);
+  router.get("/api/statistics/clinics", verifyToken, requireRole("ADMIN"), statisticController.getClinicsStats);
+  router.get("/api/statistics/specialties", verifyToken, requireRole("ADMIN"), statisticController.getSpecialtiesStats);
+  router.get("/api/statistics/bookings", verifyToken, requireRole("ADMIN"), statisticController.getBookingDetails);
+
+  // ========== CHAT ROUTES ==========
+  router.post("/api/chat-booking", verifyToken, chatController.chatBooking);
 
   return app.use("/", router);
 };
